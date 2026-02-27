@@ -1,21 +1,26 @@
-import { getAllSubscribers, isAdmin } from '../../lib/kv-store.js';
+import { getAllSubscribers } from '../../lib/kv-store.js';
 
 export async function GET(req) {
   try {
-    // Check admin auth (via header)
+    // Check admin auth - support both header and query param
     const authHeader = req.headers.get('x-admin-secret');
+    const url = new URL(req.url);
+    const authQuery = url.searchParams.get('secret');
+    
     const adminIds = process.env.ADMIN_USER_IDS?.split(',') || [];
     
-    // Simple auth check (in production, use proper auth)
-    if (!authHeader || !adminIds.includes(authHeader)) {
+    // Accept either header or query param
+    const authValue = authHeader || authQuery;
+    
+    if (!authValue || !adminIds.includes(authValue)) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
       );
     }
-    
+
     const subscribers = await getAllSubscribers();
-    
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -32,7 +37,6 @@ export async function GET(req) {
     );
   } catch (error) {
     console.error('Admin subscribers error:', error);
-    
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
@@ -42,27 +46,29 @@ export async function GET(req) {
 
 export async function POST(req) {
   try {
-    // Check admin auth
     const authHeader = req.headers.get('x-admin-secret');
-    const adminIds = process.env.ADMIN_USER_IDS?.split(',') || [];
+    const url = new URL(req.url);
+    const authQuery = url.searchParams.get('secret');
     
-    if (!authHeader || !adminIds.includes(authHeader)) {
+    const adminIds = process.env.ADMIN_USER_IDS?.split(',') || [];
+    const authValue = authHeader || authQuery;
+    
+    if (!authValue || !adminIds.includes(authValue)) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
       );
     }
-    
-    // Export to CSV
+
     const subscribers = await getAllSubscribers();
-    
+
     const csvHeader = 'identifier,type,status,created_at,preferences\n';
     const csvRows = subscribers.map(s => 
       `${s.identifier},${s.subscriber_type},${s.status},${s.created_at},"${JSON.stringify(s.preferences)}"`
     ).join('\n');
-    
+
     const csv = csvHeader + csvRows;
-    
+
     return new Response(csv, {
       status: 200,
       headers: {
@@ -72,7 +78,6 @@ export async function POST(req) {
     });
   } catch (error) {
     console.error('Admin export error:', error);
-    
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
