@@ -8,7 +8,7 @@
     "deploy": "vercel --prod"
   },
   "dependencies": {
-    "@upstash/redis": "^1.28.0",
+    "redis": "^4.6.13",
     "grammy": "^1.40.0",
     "rss-parser": "^3.13.0"
   },
