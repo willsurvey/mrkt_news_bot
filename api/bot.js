@@ -1,5 +1,15 @@
 import { Bot } from 'grammy';
-import { handleStart, handleSubscribe, handleUnsubscribe, handleStatus, handleHelp, handleAdminStats, handleAdminSubscribers } from '../bot/handlers.js';
+import { 
+  handleStart, 
+  handleSubscribe, 
+  handleUnsubscribe, 
+  handleStatus, 
+  handleHelp, 
+  handleAdminStats, 
+  handleAdminSubscribers,
+  handleNews,
+  handleAdminExport
+} from '../bot/handlers.js';
 import { addUser, addGroup } from '../lib/kv-store.js';
 
 // Initialize bot with botInfo for serverless
@@ -21,6 +31,8 @@ bot.command('subscribe', handleSubscribe);
 bot.command('unsubscribe', handleUnsubscribe);
 bot.command('status', handleStatus);
 bot.command('help', handleHelp);
+bot.command('news', handleNews);
+
 bot.command('admin', async (ctx) => {
   const args = ctx.match?.split(' ') || [];
   const command = args[0];
@@ -29,6 +41,8 @@ bot.command('admin', async (ctx) => {
     await handleAdminStats(ctx);
   } else if (command === 'subscribers') {
     await handleAdminSubscribers(ctx);
+  } else if (command === 'export') {
+    await handleAdminExport(ctx);
   } else {
     await ctx.reply('❌ Command tidak dikenali. Gunakan /help', { parse_mode: 'Markdown' });
   }
