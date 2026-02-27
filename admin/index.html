@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Market News Bot - Admin Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    h1 { color: #333; margin-bottom: 20px; }
+    h2 { color: #666; margin-bottom: 15px; font-size: 18px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+    .stat-card { background: #f8f9fa; padding: 15px; border-radius: 6px; text-align: center; }
+    .stat-value { font-size: 32px; font-weight: bold; color: #007bff; }
+    .stat-label { color: #666; margin-top: 5px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+    th { background: #f8f9fa; font-weight: 600; }
+    .status-active { color: #28a745; }
+    .status-blocked { color: #dc3545; }
+    .status-inactive { color: #6c757d; }
+    .btn { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; }
+    .btn:hover { background: #0056b3; }
+    .loading { text-align: center; padding: 40px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📊 Market News Bot - Admin Dashboard</h1>
+    
+    <div class="card">
+      <h2>📈 Statistik Sistem</h2>
+      <div class="stats" id="stats">
+        <div class="loading">Memuat statistik...</div>
+      </div>
+    </div>
+    
+    <div class="card">
+      <h2>👥 Subscriber List</h2>
+      <a href="/api/admin/subscribers" class="btn" target="_blank">Download CSV</a>
+      <div id="subscribers">
+        <div class="loading">Memuat subscriber...</div>
+      </div>
+    </div>
+    
+    <div class="card">
+      <h2>🏥 Health Check</h2>
+      <div id="health">
+        <div class="loading">Memuat status...</div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/admin/subscribers', {
+          headers: { 'x-admin-secret': 'admin' }
+        });
+        const data = await res.json();
+        
+        const users = data.subscribers.filter(s => s.type === 'user').length;
+        const groups = data.subscribers.filter(s => s.type === 'group').length;
+        const active = data.subscribers.filter(s => s.status === 'active').length;
+        const blocked = data.subscribers.filter(s => s.status === 'blocked').length;
+        
+        document.getElementById('stats').innerHTML = `
+          <div class="stat-card">
+            <div class="stat-value">${data.count}</div>
+            <div class="stat-label">Total Subscriber</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${users}</div>
+            <div class="stat-label">Individual</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${groups}</div>
+            <div class="stat-label">Grup</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${active}</div>
+            <div class="stat-label">Aktif</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${blocked}</div>
+            <div class="stat-label">Blocked</div>
+          </div>
+        `;
+        
+        // Load subscribers table
+        const tableHtml = `
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Tipe</th>
+                <th>Status</th>
+                <th>Terdaftar</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.subscribers.slice(0, 50).map(s => `
+                <tr>
+                  <td><code>${s.identifier}</code></td>
+                  <td>${s.type}</td>
+                  <td class="status-${s.status}">${s.status}</td>
+                  <td>${new Date(s.created_at).toLocaleDateString('id-ID')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          ${data.subscribers.length > 50 ? `<p style="margin-top: 10px; color: #666;">+ ${data.subscribers.length - 50} subscriber lainnya (download CSV untuk lengkap)</p>` : ''}
+        `;
+        
+        document.getElementById('subscribers').innerHTML = tableHtml;
+      } catch (error) {
+        document.getElementById('stats').innerHTML = '<div class="loading">Gagal memuat statistik</div>';
+        document.getElementById('subscribers').innerHTML = '<div class="loading">Gagal memuat subscriber</div>';
+      }
+    }
+    
+    async function loadHealth() {
+      try {
+        const res = await fetch('/api/health');
+        const data = await res.json();
+        
+        const statusColor = data.status === 'healthy' ? '#28a745' : '#dc3545';
+        const minutesText = data.minutes_since_last_run !== null 
+          ? `${data.minutes_since_last_run} menit yang lalu`
+          : 'Belum pernah';
+        
+        document.getElementById('health').innerHTML = `
+          <p><strong>Status:</strong> <span style="color: ${statusColor}">${data.status.toUpperCase()}</span></p>
+          <p><strong>Last Run:</strong> ${minutesText}</p>
+          <p><strong>Current Time:</strong> ${new Date(data.current_time).toLocaleString('id-ID')}</p>
+        `;
+      } catch (error) {
+        document.getElementById('health').innerHTML = '<div class="loading">Gagal memuat health status</div>';
+      }
+    }
+    
+    loadStats();
+    loadHealth();
+    
+    // Refresh every 60 seconds
+    setInterval(() => {
+      loadStats();
+      loadHealth();
+    }, 60000);
+  </script>
+</body>
+</html>
