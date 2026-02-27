@@ -19,10 +19,8 @@ Bot ini mengirimkan berita terkini terkait sentimen pasar saham, ekonomi, dan fi
 • Antara News Ekonomi
 • Tempo Bisnis
 • CNN Indonesia Ekonomi
-• Investing.com
 • Detik Finance
 • Liputan6 Saham
-• Republika Ekonomi
 
 🔔 *Cara Pakai:*
 /subscribe - Daftar notifikasi otomatis
