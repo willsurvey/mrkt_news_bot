@@ -9,10 +9,5 @@
       "source": "/admin",
       "destination": "/admin/index.html"
     }
-  ],
-  "crons": [
-    {
-      "path": "/api/cron"
-    }
   ]
 }
