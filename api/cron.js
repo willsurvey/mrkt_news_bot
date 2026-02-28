@@ -1,11 +1,12 @@
-import { fetchAllSources } from '../lib/rss-fetcher.js';
-import { normalizeArticle } from '../lib/rss-fetcher.js';
+import { fetchAllSources, normalizeArticle } from '../lib/rss-fetcher.js';
 import { scoreArticle } from '../lib/impact-scorer.js';
-import { filterDuplicates, markAsDispatched } from '../lib/dedup.js';
+import { filterDuplicates, markAsDispatched, generateNewsHash } from '../lib/dedup.js';
 import { selectFinalArticles } from '../lib/priority-engine.js';
 import { broadcastToAll } from '../lib/broadcast.js';
 import { updateHealthCheck } from '../lib/kv-store.js';
 import crypto from 'crypto';
+
+const MAX_DURATION_MS = 55000; // Safety margin for Vercel 60s limit
 
 export async function GET(req) {
   const executionId = crypto.randomUUID();
@@ -56,6 +57,11 @@ export async function GET(req) {
     console.log(`[${executionId}] Scoring articles...`);
     const scoredArticles = normalizedArticles.map(scoreArticle);
 
+    // Step 3.5: Generate news_hash untuk semua artikel (sebelum dedup)
+    for (const article of scoredArticles) {
+      article.news_hash = generateNewsHash(article);
+    }
+
     const scoreMetrics = {
       high: scoredArticles.filter(a => a.impact_category === 'HIGH').length,
       med: scoredArticles.filter(a => a.impact_category === 'MED').length,
@@ -76,22 +82,49 @@ export async function GET(req) {
 
     console.log(`[${executionId}] Selected ${selected.length} articles for broadcast`);
 
-    // Step 6: Add news_hash to articles
-    for (const article of selected) {
-      const { generateNewsHash } = await import('../lib/dedup.js');
-      article.news_hash = generateNewsHash(article);
+    // FIX: Early return jika tidak ada artikel yang dipilih
+    if (selected.length === 0) {
+      await updateHealthCheck();
+      return new Response(
+        JSON.stringify({
+          execution_id: executionId,
+          status: 'no_articles_selected',
+          reason: 'All articles filtered by priority rules',
+          metrics: { 
+            fetch: fetchMetrics, 
+            scoring: scoreMetrics, 
+            dedup: { unique: unique.length, duplicates: duplicates.length } 
+          }
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
-    // Step 7: Broadcast
+    // FIX: Check timeout before broadcast
+    if (Date.now() - startedAt > MAX_DURATION_MS) {
+      console.warn(`[${executionId}] Approaching timeout, stopping broadcast`);
+      await updateHealthCheck();
+      return new Response(
+        JSON.stringify({
+          execution_id: executionId,
+          status: 'timeout_warning',
+          reason: 'Approaching Vercel timeout limit',
+          metrics: { fetch: fetchMetrics, scoring: scoreMetrics }
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Step 6: Broadcast (hash sudah ada dari Step 3.5)
     console.log(`[${executionId}] Broadcasting to subscribers...`);
     const broadcastResults = await broadcastToAll(selected, executionId);
 
-    // Step 8: Mark as dispatched
+    // Step 7: Mark as dispatched
     for (const article of selected) {
       await markAsDispatched(article, executionId);
     }
 
-    // Step 9: Update health check
+    // Step 8: Update health check
     await updateHealthCheck();
 
     const duration = Date.now() - startedAt;
