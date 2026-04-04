@@ -1,13 +1,22 @@
 {
   "functions": {
     "api/*.js": {
-      "maxDuration": 120
+      "maxDuration": 60
+    },
+    "api/cron.js": {
+      "maxDuration": 60
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron",
+      "schedule": "*/15 * * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/admin",
-      "destination": "/admin/index.html"
+      "destination": "/public/index.html"
     }
   ]
 }

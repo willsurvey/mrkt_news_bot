@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Market News Bot - Admin Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    h1 { color: #333; margin-bottom: 20px; }
+    h2 { color: #666; margin-bottom: 15px; font-size: 18px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 15px; }
+    .stat-card { background: #f8f9fa; padding: 15px; border-radius: 6px; text-align: center; }
+    .stat-value { font-size: 32px; font-weight: bold; color: #007bff; }
+    .stat-label { color: #666; margin-top: 5px; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }
+    th { background: #f8f9fa; font-weight: 600; }
+    .status-active { color: #28a745; font-weight: 600; }
+    .status-blocked { color: #dc3545; font-weight: 600; }
+    .status-inactive { color: #6c757d; }
+    .btn { background: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; font-size: 14px; }
+    .btn:hover { background: #0056b3; }
+    .btn-sm { padding: 5px 10px; font-size: 12px; margin-left: 8px; }
+    .loading { text-align: center; padding: 40px; color: #999; }
+    .auth-form { display: flex; gap: 10px; align-items: center; margin-bottom: 20px; }
+    .auth-form input { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+    .alert { padding: 12px 16px; border-radius: 4px; margin-bottom: 15px; font-size: 14px; }
+    .alert-danger { background: #fff5f5; border: 1px solid #f5c6cb; color: #721c24; }
+    .health-ok { color: #28a745; }
+    .health-bad { color: #dc3545; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📊 Market News Bot — Admin Dashboard</h1>
+
+    <div class="card">
+      <h2>🔐 Autentikasi</h2>
+      <div class="auth-form">
+        <input type="password" id="adminSecret" placeholder="Masukkan ADMIN_SECRET..." />
+        <button class="btn" onclick="loadAll()">Login &amp; Muat Data</button>
+      </div>
+      <div id="authError"></div>
+    </div>
+
+    <div class="card">
+      <h2>📈 Statistik Sistem</h2>
+      <div class="stats" id="stats">
+        <div class="loading">Masukkan secret dan klik Login...</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>👥 Subscriber List</h2>
+      <button class="btn" onclick="downloadCSV()">⬇ Download CSV</button>
+      <div id="subscribers">
+        <div class="loading">Masukkan secret dan klik Login...</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🏥 Health Check</h2>
+      <div id="health">
+        <div class="loading">Memuat...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function getSecret() {
+      return document.getElementById('adminSecret').value.trim();
+    }
+
+    async function loadStats() {
+      const secret = getSecret();
+      const res = await fetch('/api/admin/subscribers', {
+        headers: { 'x-admin-secret': secret }
+      });
+
+      if (res.status === 401) {
+        document.getElementById('authError').innerHTML =
+          '<div class="alert alert-danger">❌ Secret salah atau tidak di-set di server.</div>';
+        return null;
+      }
+
+      document.getElementById('authError').innerHTML = '';
+      return await res.json();
+    }
+
+    async function loadAll() {
+      document.getElementById('stats').innerHTML = '<div class="loading">Memuat statistik...</div>';
+      document.getElementById('subscribers').innerHTML = '<div class="loading">Memuat subscriber...</div>';
+
+      try {
+        const data = await loadStats();
+        if (!data) return;
+
+        const users = data.subscribers.filter(s => s.type === 'user').length;
+        const groups = data.subscribers.filter(s => s.type === 'group').length;
+        const active = data.subscribers.filter(s => s.status === 'active').length;
+        const blocked = data.subscribers.filter(s => s.status === 'blocked').length;
+        const inactive = data.subscribers.filter(s => s.status === 'inactive').length;
+
+        document.getElementById('stats').innerHTML = `
+          <div class="stat-card"><div class="stat-value">${data.count}</div><div class="stat-label">Total Subscriber</div></div>
+          <div class="stat-card"><div class="stat-value">${users}</div><div class="stat-label">Individual</div></div>
+          <div class="stat-card"><div class="stat-value">${groups}</div><div class="stat-label">Grup</div></div>
+          <div class="stat-card"><div class="stat-value" style="color:#28a745">${active}</div><div class="stat-label">Aktif</div></div>
+          <div class="stat-card"><div class="stat-value" style="color:#dc3545">${blocked}</div><div class="stat-label">Blocked</div></div>
+          <div class="stat-card"><div class="stat-value" style="color:#6c757d">${inactive}</div><div class="stat-label">Inactive</div></div>
+        `;
+
+        const rows = data.subscribers.slice(0, 50).map(s => `
+          <tr>
+            <td><code>${s.identifier}</code></td>
+            <td>${s.type}</td>
+            <td class="status-${s.status}">${s.status}</td>
+            <td>${s.created_at ? new Date(s.created_at).toLocaleDateString('id-ID') : '-'}</td>
+          </tr>
+        `).join('');
+
+        document.getElementById('subscribers').innerHTML = `
+          <table>
+            <thead><tr><th>ID</th><th>Tipe</th><th>Status</th><th>Terdaftar</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+          ${data.subscribers.length > 50 ? `<p style="margin-top:10px;color:#666">+ ${data.subscribers.length - 50} subscriber lainnya (download CSV untuk lengkap)</p>` : ''}
+        `;
+      } catch (error) {
+        document.getElementById('stats').innerHTML = `<div class="alert alert-danger">Gagal memuat: ${error.message}</div>`;
+        document.getElementById('subscribers').innerHTML = '';
+      }
+    }
+
+    async function downloadCSV() {
+      const secret = getSecret();
+      if (!secret) { alert('Masukkan ADMIN_SECRET terlebih dahulu.'); return; }
+
+      const res = await fetch('/api/admin/subscribers', {
+        method: 'POST',
+        headers: { 'x-admin-secret': secret }
+      });
+
+      if (!res.ok) { alert('Gagal download. Cek secret.'); return; }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `subscribers_${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function loadHealth() {
+      try {
+        const res = await fetch('/api/health');
+        const data = await res.json();
+
+        const isHealthy = data.status === 'healthy';
+        const lastRunText = data.minutes_since_last_run !== null
+          ? `${data.minutes_since_last_run} menit yang lalu`
+          : 'Belum pernah berjalan';
+
+        document.getElementById('health').innerHTML = `
+          <p><strong>Status:</strong> <span class="${isHealthy ? 'health-ok' : 'health-bad'}">${data.status.toUpperCase()}</span></p>
+          <p style="margin-top:8px"><strong>Cron terakhir:</strong> ${lastRunText}</p>
+          <p style="margin-top:8px"><strong>Waktu server:</strong> ${new Date(data.current_time).toLocaleString('id-ID', {timeZone:'Asia/Jakarta'})}</p>
+        `;
+      } catch (error) {
+        document.getElementById('health').innerHTML = `<div class="alert alert-danger">Gagal memuat health status: ${error.message}</div>`;
+      }
+    }
+
+    // Load health saat halaman dibuka (tidak butuh auth)
+    loadHealth();
+    setInterval(loadHealth, 60000);
+  </script>
+</body>
+</html>

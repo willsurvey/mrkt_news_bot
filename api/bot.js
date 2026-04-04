@@ -1,31 +1,21 @@
-import { Bot } from 'grammy';
-import { 
-  handleStart, 
-  handleSubscribe, 
-  handleUnsubscribe, 
-  handleStatus, 
-  handleHelp, 
-  handleAdminStats, 
+import { Bot, webhookCallback } from 'grammy';
+import {
+  handleStart,
+  handleSubscribe,
+  handleUnsubscribe,
+  handleStatus,
+  handleHelp,
+  handleAdminStats,
   handleAdminSubscribers,
   handleNews,
   handleAdminExport
-} from '../bot/handlers.js';
+} from './handlers.js';
 import { addUser, addGroup } from '../lib/kv-store.js';
 
-// Initialize bot with botInfo for serverless
-const bot = new Bot(process.env.BOT_TOKEN, {
-  botInfo: {
-    id: 0,
-    is_bot: true,
-    first_name: 'Market News Bot',
-    username: 'market_news_bot',
-    can_join_groups: true,
-    can_read_all_group_messages: false,
-    supports_inline_queries: false,
-  },
-});
+// ==================== BOT SETUP ====================
+const bot = new Bot(process.env.BOT_TOKEN);
 
-// Register command handlers
+// Command handlers
 bot.command('start', handleStart);
 bot.command('subscribe', handleSubscribe);
 bot.command('unsubscribe', handleUnsubscribe);
@@ -34,24 +24,26 @@ bot.command('help', handleHelp);
 bot.command('news', handleNews);
 
 bot.command('admin', async (ctx) => {
-  const args = ctx.match?.split(' ') || [];
-  const command = args[0];
-  
-  if (command === 'stats') {
+  const args = (ctx.match || '').trim().split(/\s+/);
+  const subCommand = args[0];
+
+  if (subCommand === 'stats') {
     await handleAdminStats(ctx);
-  } else if (command === 'subscribers') {
+  } else if (subCommand === 'subscribers') {
     await handleAdminSubscribers(ctx);
-  } else if (command === 'export') {
+  } else if (subCommand === 'export') {
     await handleAdminExport(ctx);
   } else {
-    await ctx.reply('❌ Command tidak dikenali. Gunakan /help', { parse_mode: 'Markdown' });
+    await ctx.reply(
+      '❌ Command tidak dikenali\\. Gunakan /help untuk daftar perintah\\.',
+      { parse_mode: 'MarkdownV2' }
+    );
   }
 });
 
-// Message handler (untuk auto-save user/group saat chat)
+// Auto-save user/group saat berinteraksi
 bot.on('message', async (ctx) => {
   const chatId = ctx.chat.id;
-  
   try {
     if (ctx.chat.type === 'private') {
       await addUser(chatId);
@@ -63,12 +55,20 @@ bot.on('message', async (ctx) => {
   }
 });
 
-// Vercel Serverless Handler (untuk webhook Telegram)
+// Error handler global
+bot.catch((err) => {
+  const ctx = err.ctx;
+  console.error(`Error handling update ${ctx.update.update_id}:`, err.error);
+});
+
+// ==================== VERCEL SERVERLESS HANDLER ====================
+
+// FIX: Gunakan webhookCallback dari grammy untuk handle POST webhook
+const handleUpdate = webhookCallback(bot, 'std/http');
+
 export async function POST(req) {
   try {
-    const body = await req.json();
-    await bot.handleUpdate(body);
-    return new Response('OK', { status: 200 });
+    return await handleUpdate(req);
   } catch (error) {
     console.error('Webhook error:', error);
     return new Response(
@@ -78,16 +78,12 @@ export async function POST(req) {
   }
 }
 
-// Test endpoint
 export async function GET() {
   return new Response(
     JSON.stringify({
       status: 'Bot is running! 🤖',
-      tokenSet: !!process.env.BOT_TOKEN
+      token_set: !!process.env.BOT_TOKEN
     }),
-    {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    }
+    { status: 200, headers: { 'Content-Type': 'application/json' } }
   );
 }

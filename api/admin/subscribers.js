@@ -1,18 +1,31 @@
 import { getAllSubscribers } from '../../lib/kv-store.js';
 
+/**
+ * Auth menggunakan ADMIN_SECRET (string rahasia terpisah dari ADMIN_USER_IDS).
+ * ADMIN_USER_IDS berisi Telegram user ID (angka) — tidak cocok untuk HTTP auth.
+ * Tambahkan ADMIN_SECRET=your_secret ke .env
+ */
+function isAuthorized(req) {
+  const adminSecret = process.env.ADMIN_SECRET;
+
+  // Jika ADMIN_SECRET tidak di-set, endpoint ini tidak bisa diakses
+  if (!adminSecret) {
+    console.error('ADMIN_SECRET env var not set — admin API disabled');
+    return false;
+  }
+
+  const authHeader = req.headers.get('x-admin-secret');
+  const url = new URL(req.url);
+  const authQuery = url.searchParams.get('secret');
+  const provided = authHeader || authQuery;
+
+  return provided === adminSecret;
+}
+
+// GET: JSON list subscriber
 export async function GET(req) {
   try {
-    // Check admin auth - support both header and query param
-    const authHeader = req.headers.get('x-admin-secret');
-    const url = new URL(req.url);
-    const authQuery = url.searchParams.get('secret');
-    
-    const adminIds = process.env.ADMIN_USER_IDS?.split(',') || [];
-    
-    // Accept either header or query param
-    const authValue = authHeader || authQuery;
-    
-    if (!authValue || !adminIds.includes(authValue)) {
+    if (!isAuthorized(req)) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
@@ -36,7 +49,7 @@ export async function GET(req) {
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Admin subscribers error:', error);
+    console.error('Admin subscribers GET error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
@@ -44,16 +57,10 @@ export async function GET(req) {
   }
 }
 
+// POST: CSV export
 export async function POST(req) {
   try {
-    const authHeader = req.headers.get('x-admin-secret');
-    const url = new URL(req.url);
-    const authQuery = url.searchParams.get('secret');
-    
-    const adminIds = process.env.ADMIN_USER_IDS?.split(',') || [];
-    const authValue = authHeader || authQuery;
-    
-    if (!authValue || !adminIds.includes(authValue)) {
+    if (!isAuthorized(req)) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
@@ -63,8 +70,8 @@ export async function POST(req) {
     const subscribers = await getAllSubscribers();
 
     const csvHeader = 'identifier,type,status,created_at,preferences\n';
-    const csvRows = subscribers.map(s => 
-      `${s.identifier},${s.subscriber_type},${s.status},${s.created_at},"${JSON.stringify(s.preferences)}"`
+    const csvRows = subscribers.map(s =>
+      `${s.identifier},${s.subscriber_type},${s.status},${s.created_at},"${JSON.stringify(s.preferences || {})}"`
     ).join('\n');
 
     const csv = csvHeader + csvRows;
@@ -73,11 +80,11 @@ export async function POST(req) {
       status: 200,
       headers: {
         'Content-Type': 'text/csv',
-        'Content-Disposition': 'attachment; filename=subscribers.csv'
+        'Content-Disposition': `attachment; filename=subscribers_${Date.now()}.csv`
       }
     });
   } catch (error) {
-    console.error('Admin export error:', error);
+    console.error('Admin subscribers POST error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
