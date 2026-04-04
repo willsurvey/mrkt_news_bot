@@ -62,8 +62,6 @@ bot.catch((err) => {
 });
 
 // ==================== VERCEL SERVERLESS HANDLER ====================
-
-// FIX: Gunakan webhookCallback dari grammy untuk handle POST webhook
 const handleUpdate = webhookCallback(bot, 'std/http');
 
 export async function POST(req) {

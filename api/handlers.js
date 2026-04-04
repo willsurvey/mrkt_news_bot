@@ -282,7 +282,6 @@ export async function handleAdminExport(ctx) {
     ).join('\n');
     const csv = csvHeader + csvRows;
 
-    // FIX: grammy v2 menggunakan InputFile untuk upload dokumen
     const { InputFile } = await import('grammy');
     const filename = `subscribers_${Date.now()}.csv`;
     const buffer = Buffer.from(csv, 'utf-8');

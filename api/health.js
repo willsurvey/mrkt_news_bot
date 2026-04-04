@@ -10,7 +10,6 @@ export async function GET() {
       ? Math.floor((now - lastRun) / 60000)
       : null;
 
-    // Healthy jika cron berjalan dalam 30 menit terakhir
     const status = minutesSinceLastRun !== null && minutesSinceLastRun < 30
       ? 'healthy'
       : 'degraded';

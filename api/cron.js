@@ -6,7 +6,7 @@ import { broadcastToAll } from '../lib/broadcast.js';
 import { updateHealthCheck } from '../lib/kv-store.js';
 import crypto from 'crypto';
 
-const MAX_DURATION_MS = 55000; // Safety margin untuk Vercel 60s limit
+const MAX_DURATION_MS = 55000;
 
 export async function GET(req) {
   const executionId = crypto.randomUUID();
@@ -46,7 +46,6 @@ export async function GET(req) {
     console.log(`[${executionId}] Scoring...`);
     const scoredArticles = normalizedArticles.map(scoreArticle);
 
-    // Generate hash sebelum dedup
     for (const article of scoredArticles) {
       article.news_hash = generateNewsHash(article);
     }
@@ -82,7 +81,6 @@ export async function GET(req) {
       });
     }
 
-    // Timeout guard sebelum broadcast
     if (Date.now() - startedAt > MAX_DURATION_MS) {
       console.warn(`[${executionId}] Approaching timeout, skipping broadcast`);
       await updateHealthCheck();

@@ -1,14 +1,8 @@
 import { getAllSubscribers } from '../../lib/kv-store.js';
 
-/**
- * Auth menggunakan ADMIN_SECRET (string rahasia terpisah dari ADMIN_USER_IDS).
- * ADMIN_USER_IDS berisi Telegram user ID (angka) — tidak cocok untuk HTTP auth.
- * Tambahkan ADMIN_SECRET=your_secret ke .env
- */
 function isAuthorized(req) {
   const adminSecret = process.env.ADMIN_SECRET;
 
-  // Jika ADMIN_SECRET tidak di-set, endpoint ini tidak bisa diakses
   if (!adminSecret) {
     console.error('ADMIN_SECRET env var not set — admin API disabled');
     return false;
