@@ -87,7 +87,15 @@ curl "https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo"
 
 ## 🔄 Cara Kerja Cron
 
-Cron berjalan otomatis setiap 15 menit (dikonfigurasi di `vercel.json`):
+Karena Vercel Hobby plan tidak mendukung cron lebih dari sekali per hari, gunakan layanan eksternal untuk memanggil `/api/cron` secara berkala.
+
+**Rekomendasi (gratis):**
+- **[cron-job.org](https://cron-job.org)** → buat job `GET https://your-app.vercel.app/api/cron` setiap 15 menit
+- **[EasyCron](https://easycron.com)** → sama, gratis tier tersedia
+- **GitHub Actions** → workflow dengan `schedule: '*/15 * * * *'`
+- **UptimeRobot** → monitor HTTP setiap 5 menit (sekaligus keep-alive)
+
+Pipeline yang dijalankan setiap kali endpoint dipanggil:
 
 ```
 Fetch RSS → Normalize → Score → Dedup → Priority Select → Broadcast → Mark Dispatched
